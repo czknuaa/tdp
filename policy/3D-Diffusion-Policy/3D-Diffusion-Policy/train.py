@@ -103,12 +103,13 @@ class TrainDP3Workspace:
         
         RUN_ROLLOUT = False
         RUN_VALIDATION = True # reduce time cost
-        
+        cfg.training.resume = True
         # resume training
         if cfg.training.resume:
             #返回最新的检查点路径
             lastest_ckpt_path = self.get_checkpoint_path()
             #如果文件存在
+            print(f"checkpoint {lastest_ckpt_path}")
             if lastest_ckpt_path.is_file():
                 print(f"Resuming from checkpoint {lastest_ckpt_path}")
                 self.load_checkpoint(path=lastest_ckpt_path) #加载检查点
