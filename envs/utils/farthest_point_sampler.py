@@ -34,3 +34,5 @@ def fps(points, num_points=1024, use_cuda=True):
         sampled_points = sampled_points.numpy()
 
     return sampled_points, indices
+    #[1024,3] [1,1024]
+

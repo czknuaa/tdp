@@ -3,10 +3,12 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torchvision
 import copy
-
+import numpy as np
 from typing import Optional, Dict, Tuple, Union, List, Type
 from termcolor import cprint
-
+import pdb
+import open3d as o3d
+import time
 
 
 def create_mlp(
@@ -47,8 +49,6 @@ def create_mlp(
     if squash_output:
         modules.append(nn.Tanh())
     return modules
-
-
 
 
 class PointNetEncoderXYZRGB(nn.Module):
@@ -199,8 +199,21 @@ class PointNetEncoderXYZ(nn.Module):
         """
         self.input_pointcloud = input[0].detach()
 
-    
+def Vis_PC(xyz_filtered):
+    # 创建 Open3D 点云对象
+    pcd_clustered = o3d.geometry.PointCloud()
+    pcd_clustered.points = o3d.utility.Vector3dVector(xyz_filtered)
+   # pcd_clustered.colors = o3d.utility.Vector3dVector(colored_labels)
+    stime = time.time()
+    voxel_size = 0.05  # 体素大小
+    downpcd = pcd_clustered.voxel_down_sample(voxel_size)
+    print(time.time() - time.time())
+    # 可视化聚类后的点云
+    o3d.visualization.draw_geometries([downpcd], window_name="DBSCAN Clustering")
+    num_points = len(downpcd.points)  # 或者 num_points = np.asarray(downpcd.points).shape[0]
 
+# 打印点的数量
+    print(f"Number of points in downsampled point cloud: {num_points}")
 
 class DP3Encoder(nn.Module):
     def __init__(self, 
@@ -239,13 +252,14 @@ class DP3Encoder(nn.Module):
         if pointnet_type == "pointnet":
             if use_pc_color:
                 pointcloud_encoder_cfg.in_channels = 6
-                self.extractor = PointNetEncoderXYZRGB(**pointcloud_encoder_cfg)
+              #  self.extractor = PointNetEncoderXYZRGB(**pointcloud_encoder_cfg)
             else:
                 pointcloud_encoder_cfg.in_channels = 3
-                self.extractor = PointNetEncoderXYZ(**pointcloud_encoder_cfg)
+               # self.extractor = PointNetEncoderXYZ(**pointcloud_encoder_cfg)
         else:
             raise NotImplementedError(f"pointnet_type: {pointnet_type}")
-
+        ###
+        self.extractor = PCT()
 
         if len(state_mlp_size) == 0:
             raise RuntimeError(f"State mlp size is empty")
@@ -264,19 +278,32 @@ class DP3Encoder(nn.Module):
     def forward(self, observations: Dict) -> torch.Tensor:
         points = observations[self.point_cloud_key]
         assert len(points.shape) == 3, cprint(f"point cloud shape: {points.shape}, length should be 3", "red")
+        
         if self.use_imagined_robot:
             img_points = observations[self.imagination_key][..., :points.shape[-1]] # align the last dim
             points = torch.concat([points, img_points], dim=1)
+       
+        xyz = points
         
-        # points = torch.transpose(points, 1, 2)   # B * 3 * N
-        # points: B * 3 * (N + sum(Ni))
-        pn_feat = self.extractor(points)    # B * out_channel
-            
+        # 生成掩码 (B, N)
+        mask = (xyz[:, :, 0] >= -0.19) | (xyz[:, :, 1] >= -0.14)
+
+        # 使用掩码过滤点
+        xyz_filtered = [xyz[b][mask[b]] for b in range(xyz.shape[0])]
+
+        # 将结果堆叠成一个张量 (B, N_filtered, 3)
+        xyz_filtered = torch.nn.utils.rnn.pad_sequence(xyz_filtered, batch_first=True)
+        
+        # 创建 Open3D 点云对象
+        Vis_PC(xyz_filtered[0].cpu().numpy())
+        input()
+        pn_feat = self.extractor(xyz_filtered)
+        
         state = observations[self.state_key]
         state_feat = self.state_mlp(state)  # B * 64
         final_feat = torch.cat([pn_feat, state_feat], dim=-1)
         return final_feat
-
+        
 
     def output_shape(self):
         return self.n_output_channels

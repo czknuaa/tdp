@@ -26,8 +26,8 @@ class empty_cup_place(Base_task):
         if tag==0:
             self.cup,self.cup_data = rand_create_glb(
                 self.scene,
-                xlim=[0.15,0.3],
-                ylim=[-0.2,0.05],
+                xlim=[0.25], #[0.15,0.3],
+                ylim=[-0.02],#[-0.05,0.05], #[-0.2,0.05],
                 zlim=[0.8],
                 modelname="022_cup",
                 rotate_rand=False,
@@ -45,7 +45,7 @@ class empty_cup_place(Base_task):
 
             while np.sum(pow(cup_pose[:2] - coaster_pose.p[:2],2)) < 0.01:
                 coaster_pose = rand_pose(
-                    xlim=[-0.05,0.1],
+                    xlim=[0.05,0.1],#[-0.05,0.1],
                     ylim=[-0.2,0.05],
                     zlim=[0.76],
                     rotate_rand=False,
